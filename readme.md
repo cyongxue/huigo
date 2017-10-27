@@ -5,3 +5,4 @@
 ## 组件列表
 
 - hqueue：队列缓存任务池；
+- hsimplesocket: socket的简版封装
