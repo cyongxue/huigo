@@ -4,10 +4,15 @@ import (
     "runtime"
     "container/list"
     "sync"
+    "time"
+)
+
+const (
+    QUEUE_LIMIT_DEFAULT =  10240
 )
 
 /**
- 队列queue设计
+ @Description：queue的设计结构
  */
 type Queue struct {
     queueBuf        *list.List
@@ -21,6 +26,7 @@ type Queue struct {
     stop        chan bool                       // 通知停止
     stopped     bool                            // 标记停止
 
+    currentGoCount     int
     GoLimit            int                      // 限制的协程数
     Handler            func(interface{})        // 回调接口
 
@@ -28,16 +34,20 @@ type Queue struct {
 }
 
 /**
- 创建一个queue
+ @Description：创建一个queue
+ @Param:
+ @Return：
  */
-func NewQueue(handler func(interface{}), goLimit int) *Queue {
+func NewQueue(handler func(interface{}), limit int, qLimit int) *Queue {
 
-    if goLimit <= 0 {
-        goLimit = 1
+    if limit <= 0 {
+        limit = 1
     }
 
     newQ := &Queue{
         queueBuf: list.New(),
+        queueLimit: qLimit,
+
         pushBack: make(chan interface{}),
         popFront: make(chan interface{}),
         suspend: make(chan bool),
@@ -46,7 +56,7 @@ func NewQueue(handler func(interface{}), goLimit int) *Queue {
         stopped: false,
 
         currentGoCount: 0,
-        GoLimit: goLimit,
+        GoLimit: limit,
         Handler: handler,
 
         wg: sync.WaitGroup{},
@@ -56,16 +66,20 @@ func NewQueue(handler func(interface{}), goLimit int) *Queue {
 }
 
 /**
- new and run
- */
-func NewQueueAndRun(handler func(interface{}), goLimite int) *Queue {
+@Description：创建一个queue，并开始run
+@Param:
+@Return：
+*/
+func NewQueueAndRun(handler func(interface{}), limit int, qLimit int) *Queue {
 
-    if goLimite <= 0 {
-        goLimite = 1
+    if limit <= 0 {
+        limit = 1
     }
 
     newQ := &Queue{
         queueBuf: list.New(),
+        queueLimit: qLimit,
+
         pushBack: make(chan interface{}),
         popFront: make(chan interface{}),
         suspend: make(chan bool),
@@ -73,8 +87,7 @@ func NewQueueAndRun(handler func(interface{}), goLimite int) *Queue {
         stop: make(chan bool),
         stopped: false,
 
-        currentGoCount: 0,
-        GoLimit: goLimite,
+        GoLimit: limit,
         Handler: handler,
 
         wg: sync.WaitGroup{},
@@ -87,17 +100,20 @@ func NewQueueAndRun(handler func(interface{}), goLimite int) *Queue {
     return newQ
 }
 
-
 /**
- queue的运行, 外部调用
- */
-func (this *Queue) Run() {
-    go this.run()
+ @Description: 开始run
+ @Param:
+ @Return：
+*/
+func (q *Queue) Run() {
+    go q.run()
 }
 
 /**
- queue的运行，内部调用
- */
+ @Description: run的实际实现逻辑
+ @Param:
+ @Return：
+*/
 func (q *Queue) run() {
     // 退出run，则销毁buf和wait
     defer func() {
@@ -173,8 +189,16 @@ func (q *Queue) Stop()  {
  加入一个元素
  */
 func (q *Queue) Push(item interface{})  {
-    //println("insert: " + item.(string))
-    q.pushBack <- item
+    for {
+        if q.queueBuf.Len() < q.queueLimit {
+            // 空间够，则直接push
+            q.pushBack <- item
+            return
+        }
+
+        // 空间不够，则停顿一会
+        time.Sleep(2 * time.Second)
+    }
     return
 }
 
