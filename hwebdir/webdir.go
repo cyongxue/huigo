@@ -137,6 +137,7 @@ func (w *WebDir) getDomainDirFile() error {
  @Return：
  */
 func (w *WebDir) Do() error {
+    fmt.Println("begin...")
     // 首先域名访问，保证可访问
     err := w.Request.HttpDo("")
     if err != nil {
@@ -164,6 +165,7 @@ func (w *WebDir) Do() error {
 
     // 开始执行爆破
     cnt := len(w.DomainDirFiles)
+    fmt.Println(fmt.Sprintf("begin add '%d' task to queue.", cnt))
     // 将burp爆破的item加入到queue中
     for _, one := range w.DomainDirFiles {
         item := &BurpItem{
@@ -176,7 +178,7 @@ func (w *WebDir) Do() error {
         TaskQueueInstance().MsgQ.Push(item)
     }
 
-    // todo: for等待结果
+    fmt.Println(fmt.Sprintf("wait for '%d' result.", cnt))
     for i := 0; i < cnt; i++ {
         ret := <- w.ChResult
         if ret.Type == 2 {
@@ -186,6 +188,7 @@ func (w *WebDir) Do() error {
         }
     }
     close(w.ChResult)
+    fmt.Println("end....")
 
     return nil
 }
